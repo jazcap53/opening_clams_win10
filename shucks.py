@@ -51,6 +51,12 @@ class ShucksGame:
                 return user_input
             print("Invalid input. Please try again.")
 
+    def clear_screen(self):
+        if os.name == 'nt':  # Windows
+            os.system('cls')
+        else:  # Linux, macOS
+            os.system('clear')
+
     def handle_guess(self, user_input: str) -> bool:
         if user_input == 'q':
             return False
@@ -61,12 +67,13 @@ class ShucksGame:
         elif user_input == 'r':
             return True  # Just continue the loop, don't change the current file
         else:
-            self.check_guess(int(user_input) - 1)
+            if not self.check_guess(int(user_input) - 1):
+                time.sleep(2)  # Pause for 2 seconds after a wrong answer
         return True
 
     def play(self):
-        self.display_song_list()
         while self.unguessed_files:
+            self.display_song_list()
             if not self.current_file:
                 self.current_file = random.choice(self.unguessed_files)
 
@@ -84,6 +91,9 @@ class ShucksGame:
                     break  # Break the inner loop to potentially play a new file
                 self.play_file()  # If repeating, play the file again
 
+            if self.unguessed_files:
+                self.clear_screen()  # Clear the screen
+
         if not self.unguessed_files:
             print("\nCongratulations! You've guessed all the tunes correctly!")
         else:
@@ -95,16 +105,20 @@ class ShucksGame:
         time.sleep(2)
         self.current_file = random.choice(self.unguessed_files)
 
-    def check_guess(self, guess_index: int):
+    def check_guess(self, guess_index: int) -> bool:
         guessed_title = self.song_titles[guess_index]
         if self.current_file in self.songs[guessed_title]:
             print(f"\nCorrect! The audio clip is from {guessed_title}.")
             time.sleep(2)
             self.unguessed_files.remove(self.current_file)
             self.current_file = random.choice(self.unguessed_files) if self.unguessed_files else None
+            if self.unguessed_files:
+                self.clear_screen()  # Clear the screen
+            return True
         else:
             print(f"\nIncorrect. Your guess was: {guessed_title}")
             print("Try again.")
+            return False
 
 
 def main():
