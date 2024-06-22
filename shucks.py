@@ -11,12 +11,14 @@ VALID_ACTIONS = {'s', 'a', 'r', 'q'}
 
 
 class ShucksGame:
-    def __init__(self, debug_mode: bool = False):
+    def __init__(self, debug_mode: bool = False, num_files: Optional[int] = None):
         self.debug_mode = debug_mode
         self.songs = self.get_songs()
         self.song_titles = list(self.songs.keys())
-        self.unguessed_files = self.get_unguessed_files()
+        self.unguessed_files = self.get_unguessed_files(num_files)
         self.current_file: Optional[str] = None
+        self.total_questions = len(self.unguessed_files)
+        self.correct_answers = 0
 
     def get_songs(self) -> Dict[str, List[str]]:
         songs = {}
@@ -27,13 +29,15 @@ class ShucksGame:
                 song_title = ' '.join(word.capitalize() for word in words[:-1])
                 audio_path = os.path.join(AUDIO_DIR, filename)
                 songs.setdefault(song_title, []).append(audio_path)
-
-        if self.debug_mode:
-            return {title: paths[:1] for title, paths in list(songs.items())[:5]}
         return songs
 
-    def get_unguessed_files(self) -> List[str]:
-        return [file for files in self.songs.values() for file in files]
+    def get_unguessed_files(self, num_files: Optional[int] = None) -> List[str]:
+        all_files = [file for files in self.songs.values() for file in files]
+        if num_files is None:
+            num_files = len(all_files) if not self.debug_mode else 5
+        if num_files < 1 or num_files > len(all_files):
+            raise ValueError(f"Invalid number of files: {num_files}. Must be between 1 and {len(all_files)}.")
+        return random.sample(all_files, num_files)
 
     def play_file(self):
         print("\nPlaying audio...")
@@ -43,6 +47,9 @@ class ShucksGame:
         print("List of songs:")
         for i, song in enumerate(self.song_titles, 1):
             print(f"{i}. {song}")
+
+    def display_progress(self):
+        print(f"\nAsking {self.total_questions} questions: {self.correct_answers} answered correctly so far.\n")
 
     def get_user_input(self) -> str:
         while True:
@@ -67,13 +74,18 @@ class ShucksGame:
         elif user_input == 'r':
             return True  # Just continue the loop, don't change the current file
         else:
-            if not self.check_guess(int(user_input) - 1):
+            if self.check_guess(int(user_input) - 1):
+                self.correct_answers += 1
+            else:
                 time.sleep(2)  # Pause for 2 seconds after a wrong answer
         return True
 
     def play(self):
+        self.clear_screen()  # Clear the screen at the beginning of the game
         while self.unguessed_files:
             self.display_song_list()
+            self.display_progress()
+
             if not self.current_file:
                 self.current_file = random.choice(self.unguessed_files)
 
@@ -122,9 +134,21 @@ class ShucksGame:
 
 
 def main():
-    debug_mode = DEBUG or "-d" in sys.argv
-    game = ShucksGame(debug_mode)
-    game.play()
+    debug_mode = False
+    num_files = None
+
+    # Parse command-line arguments
+    for arg in sys.argv[1:]:
+        if arg == '-d':
+            debug_mode = True
+        elif arg.isdigit():
+            num_files = int(arg)
+
+    try:
+        game = ShucksGame(debug_mode, num_files)
+        game.play()
+    except ValueError as e:
+        print(f"Error: {str(e)}")
 
 
 if __name__ == "__main__":

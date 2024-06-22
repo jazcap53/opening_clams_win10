@@ -164,3 +164,4 @@ cython_debug/
 ai_instructions.txt
 
 *.sw?
+NOTES.txt
