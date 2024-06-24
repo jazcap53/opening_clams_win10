@@ -81,31 +81,36 @@ class ShucksGame:
         return True
 
     def play(self):
-        self.clear_screen()  # Clear the screen at the beginning of the game
+        self.clear_screen()
         while self.unguessed_files:
             self.display_song_list()
             self.display_progress()
-
-            if not self.current_file:
-                self.current_file = random.choice(self.unguessed_files)
-
-            if self.debug_mode:
-                correct_answer = next(title for title, paths in self.songs.items() if self.current_file in paths)
-                print(f"Debug: Correct answer is {correct_answer}")
-
-            self.play_file()  # Play the audio file
-
-            while True:  # Inner loop for handling repeats
-                user_input = self.get_user_input()
-                if user_input != 'r':  # If not repeating, break the inner loop
-                    if not self.handle_guess(user_input):
-                        return  # Exit the game if user quits
-                    break  # Break the inner loop to potentially play a new file
-                self.play_file()  # If repeating, play the file again
-
+            self.select_and_play_file()
+            self.display_debug_info()
+            if not self.handle_user_interaction():
+                break
             if self.unguessed_files:
-                self.clear_screen()  # Clear the screen
+                self.clear_screen()
+        self.display_game_over_message()
 
+    def select_and_play_file(self):
+        if not self.current_file:
+            self.current_file = random.choice(self.unguessed_files)
+        self.play_file()
+
+    def handle_user_interaction(self) -> bool:
+        while True:
+            user_input = self.get_user_input()
+            if user_input != 'r':
+                return self.handle_guess(user_input)
+            self.play_file()
+
+    def display_debug_info(self):
+        if self.debug_mode:
+            correct_answer = next(title for title, paths in self.songs.items() if self.current_file in paths)
+            print(f"\nDebug: Correct answer is {correct_answer}")
+
+    def display_game_over_message(self):
         if not self.unguessed_files:
             print("\nCongratulations! You've guessed all the tunes correctly!")
         else:
