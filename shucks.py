@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 DEBUG = False
 AUDIO_DIR = "audio_files"
 VALID_ACTIONS = {'s', 'a', 'r', 'q'}
+SLEEP_SECS = 1.5
 
 
 class ShucksGame:
@@ -77,7 +78,7 @@ class ShucksGame:
             if self.check_guess(int(user_input) - 1):
                 self.correct_answers += 1
             else:
-                time.sleep(2)  # Pause for 2 seconds after a wrong answer
+                time.sleep(SLEEP_SECS)  # Pause for 2 seconds after a wrong answer
         return True
 
     def play(self):
@@ -119,14 +120,14 @@ class ShucksGame:
     def show_answer(self):
         song_title = next(title for title, paths in self.songs.items() if self.current_file in paths)
         print(f"\nThe correct song is: {song_title}")
-        time.sleep(2)
+        time.sleep(SLEEP_SECS)
         self.current_file = random.choice(self.unguessed_files)
 
     def check_guess(self, guess_index: int) -> bool:
         guessed_title = self.song_titles[guess_index]
         if self.current_file in self.songs[guessed_title]:
             print(f"\nCorrect! The audio clip is from {guessed_title}.")
-            time.sleep(2)
+            time.sleep(SLEEP_SECS)
             self.unguessed_files.remove(self.current_file)
             self.current_file = random.choice(self.unguessed_files) if self.unguessed_files else None
             if self.unguessed_files:
