@@ -21,7 +21,8 @@ class ShucksGame:
         self.total_questions = len(self.unguessed_files)
         self.correct_answers = 0
 
-    def get_songs(self) -> Dict[str, List[str]]:
+    @staticmethod
+    def get_songs() -> Dict[str, List[str]]:
         songs = {}
         for filename in os.listdir(AUDIO_DIR):
             if filename.endswith(".mp3"):
@@ -59,7 +60,8 @@ class ShucksGame:
                 return user_input
             print("Invalid input. Please try again.")
 
-    def clear_screen(self):
+    @staticmethod
+    def clear_screen():
         if os.name == 'nt':  # Windows
             os.system('cls')
         else:  # Linux, macOS
