@@ -5,6 +5,10 @@ import time
 import sys
 from typing import Dict, List, Optional
 
+import pygame
+import threading
+
+
 DEBUG = False
 AUDIO_DIR = "audio_files"
 VALID_ACTIONS = {'s', 'a', 'r', 'q'}
@@ -20,6 +24,13 @@ class ShucksGame:
         self.current_file: Optional[str] = None
         self.total_questions = len(self.unguessed_files)
         self.correct_answers = 0
+
+        pygame.mixer.init()
+        self.audio_thread = None
+        self.stop_audio = False
+
+    def __del__(self):
+        pygame.mixer.quit()
 
     @staticmethod
     def get_songs() -> Dict[str, List[str]]:
@@ -43,12 +54,25 @@ class ShucksGame:
 
     def play_file(self):
         print("\nPlaying audio...")
-        playsound(self.current_file)
+        self.play_audio_in_thread()
 
     def display_song_list(self):
         print("List of songs:")
         for i, song in enumerate(self.song_titles, 1):
             print(f"{i}. {song}")
+
+    def play_audio_in_thread(self):
+        if self.current_file:
+            self.stop_audio = False
+            sound = pygame.mixer.Sound(self.current_file)
+            self.audio_thread = threading.Thread(target=self.play_audio, args=(sound,))
+            self.audio_thread.start()
+
+    def play_audio(self, sound):
+        sound.play()
+        while pygame.mixer.get_busy() and not self.stop_audio:
+            time.sleep(0.1)
+        sound.stop()
 
     def display_progress(self):
         print(f"\nAsking {self.total_questions} questions: {self.correct_answers} answered correctly so far.\n")
@@ -102,11 +126,18 @@ class ShucksGame:
         self.play_file()
 
     def handle_user_interaction(self) -> bool:
-        while True:
-            user_input = self.get_user_input()
-            if user_input != 'r':
-                return self.handle_guess(user_input)
+        user_input = self.get_user_input()
+        if user_input == 'r':
+            self.stop_audio = True
+            if self.audio_thread:
+                self.audio_thread.join()
             self.play_file()
+            return True  # Add this line to continue the main loop
+        else:
+            self.stop_audio = True
+            if self.audio_thread:
+                self.audio_thread.join()
+            return self.handle_guess(user_input)
 
     def display_debug_info(self):
         if self.debug_mode:
