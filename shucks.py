@@ -18,7 +18,7 @@ class ShucksGame:
     def __init__(self, debug_mode: bool = False, num_files: Optional[int] = None):
         self.debug_mode = debug_mode
         self.songs = self.get_songs()
-        self.song_titles = list(self.songs.keys())
+        self.song_titles = sorted(list(self.songs.keys()))
         self.unguessed_files = self.get_unguessed_files(num_files)
         self.current_file: Optional[str] = None
         self.total_questions = len(self.unguessed_files)
@@ -58,7 +58,7 @@ class ShucksGame:
     def display_song_list(self):
         print("List of songs:")
         for i, song in enumerate(self.song_titles, 1):
-            print(f"{i}. {song}")
+            print(f"{i}.{' ' * (i <= 9)} {song}")
 
     def play_audio_in_thread(self):
         if self.current_file:
@@ -91,13 +91,13 @@ class ShucksGame:
             os.system('clear')
 
     def handle_guess(self, user_input: str) -> bool:
-        if user_input in 'qQ':
+        if user_input == 'q':
             return False
-        elif user_input in 'sS':
+        elif user_input == 's':
             self.current_file = random.choice(self.unguessed_files)
-        elif user_input in 'aA':
+        elif user_input == 'a':
             self.show_answer()
-        elif user_input == 'rR':
+        elif user_input == 'r':
             return True  # Just continue the loop, don't change the current file
         else:
             if self.check_guess(int(user_input) - 1):
@@ -126,7 +126,7 @@ class ShucksGame:
 
     def handle_user_interaction(self) -> bool:
         user_input = self.get_user_input()
-        if user_input in 'rR':
+        if user_input == 'r':
             self.stop_audio = True
             if self.audio_thread:
                 self.audio_thread.join()
