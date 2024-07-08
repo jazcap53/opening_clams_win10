@@ -1,8 +1,7 @@
-from playsound import playsound
 import os
 import random
-import time
 import sys
+import time
 from typing import Dict, List, Optional
 
 import pygame
@@ -11,7 +10,7 @@ import threading
 
 DEBUG = False
 AUDIO_DIR = "audio_files"
-VALID_ACTIONS = {'s', 'a', 'r', 'q'}
+VALID_ACTIONS = {'s', 'S', 'a', 'A', 'r', 'R', 'q', 'Q'}
 SLEEP_SECS = 1.5
 
 
@@ -92,13 +91,13 @@ class ShucksGame:
             os.system('clear')
 
     def handle_guess(self, user_input: str) -> bool:
-        if user_input == 'q':
+        if user_input in 'qQ':
             return False
-        elif user_input == 's':
+        elif user_input in 'sS':
             self.current_file = random.choice(self.unguessed_files)
-        elif user_input == 'a':
+        elif user_input in 'aA':
             self.show_answer()
-        elif user_input == 'r':
+        elif user_input == 'rR':
             return True  # Just continue the loop, don't change the current file
         else:
             if self.check_guess(int(user_input) - 1):
@@ -127,7 +126,7 @@ class ShucksGame:
 
     def handle_user_interaction(self) -> bool:
         user_input = self.get_user_input()
-        if user_input == 'r':
+        if user_input in 'rR':
             self.stop_audio = True
             if self.audio_thread:
                 self.audio_thread.join()
