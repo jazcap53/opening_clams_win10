@@ -9,13 +9,14 @@ The program can be run in normal or debug mode, and allows for various
 user interactions such as skipping, replaying, or requesting the answer
 for each audio clip.
 """
-
+from abc import ABC, abstractmethod
 import os
 import random
 import sys
+import termios
 import time
+import tty
 from typing import Dict, List, Optional
-from abc import ABC, abstractmethod
 
 import pygame
 import threading
@@ -332,61 +333,182 @@ class NormalGameInput(ShucksGame):
 class InteractiveGameInput(ShucksGame):
     """
     Interactive implementation of ShucksGame.
-    This class provides stubs for interactive user input handling.
+    This class provides an interactive user input handling where:
+    - Alphabetic input and spaces are accepted
+    - Letters are processed as soon as they are typed
+    - The screen is updated after each letter, showing matching song titles
+    - Audio plays continuously until a correct guess is made
     """
-    def play_file(self):
-        pass  # do nothing instead of playing audio (temporary)
 
-    def get_user_input(self) -> str:
+    def __init__(self, debug_mode: bool = False, num_files: Optional[int] = None):
+        super().__init__(debug_mode, num_files)
+        self.current_input = ""
+        pygame.mixer.init()
+        self.current_file = None
+        self.audio_thread = None
+        self.stop_audio = threading.Event()
+
+    def __del__(self):
+        self.stop_audio.set()
+        if self.audio_thread:
+            self.audio_thread.join()
+        pygame.mixer.quit()
+
+    def play(self):
         """
-        Get and validate user input in interactive mode.
+        Main game loop for interactive mode.
+        Overrides the play method from ShucksGame.
+        """
+        self.clear_screen()
+        while self.unguessed_files:
+            self.select_new_file()
+            self.display_song_list()
+            print("\nPlaying audio... Try to guess the song!")
+            self.play_file()
+
+            while True:
+                self.display_matches()
+                char = self.get_char()
+                if char.isalpha() or char == ' ':
+                    self.current_input += char.lower()
+                elif char == '\x7f':  # Backspace
+                    self.current_input = self.current_input[:-1]
+                elif char == '\r':  # Enter
+                    if self.check_guess(self.current_input):
+                        print("Correct!")
+                        self.stop_audio.set()
+                        if self.audio_thread:
+                            self.audio_thread.join()
+                        time.sleep(SLEEP_SECS)
+                        self.current_input = ""
+                        break
+                    else:
+                        print("Incorrect. Try again.")
+                        time.sleep(SLEEP_SECS)
+                elif char == '\x03':  # Ctrl-C
+                    print("\nExiting the game.")
+                    self.stop_audio.set()
+                    if self.audio_thread:
+                        self.audio_thread.join()
+                    return
+                self.clear_screen()
+                self.display_song_list()
+                print("\nPlaying audio... Try to guess the song!")
+
+        self.display_game_over_message()
+
+    def get_char(self) -> str:
+        """
+        Get a single character input from the user without requiring Enter.
 
         Returns:
-            str: The validated user input.
+            str: The character entered by the user.
         """
-        # N. Y. I.
-        return 'q'  # Return 'q' to quit the game as a default behavior
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            char = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return char
 
-    def handle_guess(self, user_input: str) -> bool:
+    def display_matches(self):
         """
-        Handle the user's guess or action in interactive mode.
+        Display song titles that match the current input.
+        If no matches are found, display "Nope." and reset the input.
+        """
+        if not self.current_input:
+            return
+
+        matches = [title for title in self.song_titles if title.lower().startswith(self.current_input)]
+        if matches:
+            print(f"\nCurrent input: {self.current_input}")
+            print("Matching songs:")
+            for match in matches:
+                print(f"- {match}")
+
+            if len(matches) == 1 and matches[0] == self.get_current_song_title():
+                self.check_guess(self.current_input)
+        else:
+            print("\nNope.")
+            time.sleep(SLEEP_SECS)
+            self.current_input = ""
+
+    def check_guess(self, guess: str) -> bool:
+        """
+        Check if the user's guess is correct.
 
         Args:
-            user_input (str): The user's input.
-
-        Returns:
-            bool: True if the game should continue, False if it should end.
-        """
-        # N. Y. I.
-        return False  # Return False to end the game as a default behavior
-
-    def handle_user_interaction(self) -> bool:
-        """
-        Handle user interaction for the current audio file in interactive mode.
-
-        Returns:
-            bool: True if the game should continue, False if it should end.
-        """
-        # N. Y. I.
-        return False  # Return False to end the game as a default behavior
-
-    def show_answer(self):
-        """Show the correct answer for the current audio file in interactive mode."""
-        # N. Y. I.
-        pass
-
-    def check_guess(self, guess_index: int) -> bool:
-        """
-        Check if the user's guess is correct in interactive mode.
-
-        Args:
-            guess_index (int): The index of the guessed song in the song_titles list.
+            guess (str): The user's guess (concatenated letters).
 
         Returns:
             bool: True if the guess is correct, False otherwise.
         """
-        # N. Y. I.
-        return False  # Return False as a default behavior
+        correct_title = self.get_current_song_title()
+        if correct_title and correct_title.lower() == guess.lower():
+            print("Correct!")
+            self.stop_audio.set()
+            if self.audio_thread:
+                self.audio_thread.join()
+            time.sleep(SLEEP_SECS)
+            self.current_input = ""
+            return True
+        return False
+
+    def get_current_song_title(self) -> Optional[str]:
+        """
+        Get the title of the currently playing song.
+
+        Returns:
+            Optional[str]: The title of the current song, or None if not found.
+        """
+        return next((title for title, files in self.songs.items() if self.current_file in files), None)
+
+    def select_new_file(self):
+        """
+        Select a new file to play.
+        """
+        self.current_file = random.choice(self.unguessed_files)
+        self.unguessed_files.remove(self.current_file)
+
+    def play_file(self):
+        """
+        Play the audio file continuously in a separate thread.
+        """
+        self.stop_audio.clear()
+        self.audio_thread = threading.Thread(target=self._play_audio_loop)
+        self.audio_thread.start()
+
+    def _play_audio_loop(self):
+        """
+        Internal method to play audio in a loop until stopped.
+        """
+        sound = pygame.mixer.Sound(self.current_file)
+        while not self.stop_audio.is_set():
+            sound.play()
+            pygame.time.wait(int(sound.get_length() * 1000))
+            time.sleep(0.5)  # 0.5 second pause between replays
+        sound.stop()
+
+    @staticmethod
+    def clear_screen():
+        """Clear the console screen."""
+        os.system('clear')
+
+    # The following methods are not used in interactive mode, but are implemented
+    # to satisfy the abstract base class requirements
+    def get_user_input(self) -> str:
+        return ""
+
+    def handle_guess(self, user_input: str) -> bool:
+        return False
+
+    def handle_user_interaction(self) -> bool:
+        return False
+
+    def show_answer(self):
+        pass
 
 
 def main():
