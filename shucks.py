@@ -15,6 +15,7 @@ import random
 import sys
 import time
 from typing import Dict, List, Optional
+from abc import ABC, abstractmethod
 
 import pygame
 import threading
@@ -26,12 +27,12 @@ VALID_ACTIONS = {'s', 'S', 'a', 'A', 'r', 'R', 'q', 'Q'}
 SLEEP_SECS = 1.5
 
 
-class ShucksGame:
+class ShucksGame(ABC):
     """
-    Represents the main game logic for Shucks.
+    Abstract base class representing the main game logic for Shucks.
 
-    This class handles the game setup, audio playback, user interactions,
-    and game progression.
+    This class handles the game setup, audio playback, and game progression.
+    User input methods are declared as abstract and should be implemented by subclasses.
 
     Attributes:
         debug_mode (bool): Whether the game is in debug mode.
@@ -140,6 +141,104 @@ class ShucksGame:
         """Display the current game progress."""
         print(f"\nAsking {self.total_questions} questions: {self.correct_answers} answered correctly so far.\n")
 
+    @abstractmethod
+    def get_user_input(self) -> str:
+        """
+        Get and validate user input.
+
+        Returns:
+            str: The validated user input.
+        """
+        pass
+
+    @staticmethod
+    def clear_screen():
+        """Clear the console screen."""
+        if os.name == 'nt':  # Windows
+            os.system('cls')
+        else:  # Linux, macOS
+            os.system('clear')
+
+    @abstractmethod
+    def handle_guess(self, user_input: str) -> bool:
+        """
+        Handle the user's guess or action.
+
+        Args:
+            user_input (str): The user's input.
+
+        Returns:
+            bool: True if the game should continue, False if it should end.
+        """
+        pass
+
+    def play(self):
+        """Main game loop."""
+        self.clear_screen()
+        while self.unguessed_files:
+            self.display_song_list()
+            self.display_progress()
+            self.select_and_play_file()
+            self.display_debug_info()
+            if not self.handle_user_interaction():
+                break
+            if self.unguessed_files:
+                self.clear_screen()
+        self.display_game_over_message()
+
+    def select_and_play_file(self):
+        """Select a new file if necessary and play it."""
+        if not self.current_file:
+            self.current_file = random.choice(self.unguessed_files)
+        self.play_file()
+
+    @abstractmethod
+    def handle_user_interaction(self) -> bool:
+        """
+        Handle user interaction for the current audio file.
+
+        Returns:
+            bool: True if the game should continue, False if it should end.
+        """
+        pass
+
+    def display_debug_info(self):
+        """Display debug information if in debug mode."""
+        if self.debug_mode:
+            correct_answer = next(title for title, paths in self.songs.items() if self.current_file in paths)
+            print(f"\nDebug: Correct answer is {correct_answer}")
+
+    def display_game_over_message(self):
+        """Display the game over message."""
+        if not self.unguessed_files:
+            print("\nCongratulations! You've guessed all the tunes correctly!")
+        else:
+            print("\nThanks for playing!")
+
+    @abstractmethod
+    def show_answer(self):
+        """Show the correct answer for the current audio file."""
+        pass
+
+    @abstractmethod
+    def check_guess(self, guess_index: int) -> bool:
+        """
+        Check if the user's guess is correct.
+
+        Args:
+            guess_index (int): The index of the guessed song in the song_titles list.
+
+        Returns:
+            bool: True if the guess is correct, False otherwise.
+        """
+        pass
+
+
+class NormalGameInput(ShucksGame):
+    """
+    Concrete implementation of ShucksGame with normal user input handling.
+    """
+
     def get_user_input(self) -> str:
         """
         Get and validate user input.
@@ -152,14 +251,6 @@ class ShucksGame:
             if user_input in VALID_ACTIONS or user_input.isdigit() and 1 <= int(user_input) <= len(self.song_titles):
                 return user_input
             print("Invalid input. Please try again.")
-
-    @staticmethod
-    def clear_screen():
-        """Clear the console screen."""
-        if os.name == 'nt':  # Windows
-            os.system('cls')
-        else:  # Linux, macOS
-            os.system('clear')
 
     def handle_guess(self, user_input: str) -> bool:
         """
@@ -186,26 +277,6 @@ class ShucksGame:
                 time.sleep(SLEEP_SECS)  # Pause for 2 seconds after a wrong answer
         return True
 
-    def play(self):
-        """Main game loop."""
-        self.clear_screen()
-        while self.unguessed_files:
-            self.display_song_list()
-            self.display_progress()
-            self.select_and_play_file()
-            self.display_debug_info()
-            if not self.handle_user_interaction():
-                break
-            if self.unguessed_files:
-                self.clear_screen()
-        self.display_game_over_message()
-
-    def select_and_play_file(self):
-        """Select a new file if necessary and play it."""
-        if not self.current_file:
-            self.current_file = random.choice(self.unguessed_files)
-        self.play_file()
-
     def handle_user_interaction(self) -> bool:
         """
         Handle user interaction for the current audio file.
@@ -225,19 +296,6 @@ class ShucksGame:
             if self.audio_thread:
                 self.audio_thread.join()
             return self.handle_guess(user_input)
-
-    def display_debug_info(self):
-        """Display debug information if in debug mode."""
-        if self.debug_mode:
-            correct_answer = next(title for title, paths in self.songs.items() if self.current_file in paths)
-            print(f"\nDebug: Correct answer is {correct_answer}")
-
-    def display_game_over_message(self):
-        """Display the game over message."""
-        if not self.unguessed_files:
-            print("\nCongratulations! You've guessed all the tunes correctly!")
-        else:
-            print("\nThanks for playing!")
 
     def show_answer(self):
         """Show the correct answer for the current audio file."""
@@ -271,24 +329,96 @@ class ShucksGame:
             return False
 
 
+class InteractiveGameInput(ShucksGame):
+    """
+    Interactive implementation of ShucksGame.
+    This class provides stubs for interactive user input handling.
+    """
+    def play_file(self):
+        pass  # do nothing instead of playing audio (temporary)
+
+    def get_user_input(self) -> str:
+        """
+        Get and validate user input in interactive mode.
+
+        Returns:
+            str: The validated user input.
+        """
+        # N. Y. I.
+        return 'q'  # Return 'q' to quit the game as a default behavior
+
+    def handle_guess(self, user_input: str) -> bool:
+        """
+        Handle the user's guess or action in interactive mode.
+
+        Args:
+            user_input (str): The user's input.
+
+        Returns:
+            bool: True if the game should continue, False if it should end.
+        """
+        # N. Y. I.
+        return False  # Return False to end the game as a default behavior
+
+    def handle_user_interaction(self) -> bool:
+        """
+        Handle user interaction for the current audio file in interactive mode.
+
+        Returns:
+            bool: True if the game should continue, False if it should end.
+        """
+        # N. Y. I.
+        return False  # Return False to end the game as a default behavior
+
+    def show_answer(self):
+        """Show the correct answer for the current audio file in interactive mode."""
+        # N. Y. I.
+        pass
+
+    def check_guess(self, guess_index: int) -> bool:
+        """
+        Check if the user's guess is correct in interactive mode.
+
+        Args:
+            guess_index (int): The index of the guessed song in the song_titles list.
+
+        Returns:
+            bool: True if the guess is correct, False otherwise.
+        """
+        # N. Y. I.
+        return False  # Return False as a default behavior
+
+
 def main():
     """
     Main function to run the Shucks game.
 
     Parses command-line arguments and initializes the game.
+    Accepted command-line arguments:
+    -d: Debug mode
+    -i or -I: Interactive mode (currently ignored, placeholder for future functionality)
+    <integer>: Number of files to use in the game
+
+    The function creates and runs an instance of NormalGameInput with the parsed settings.
     """
     debug_mode = False
     num_files = None
+    interactive_switch = False  # This is unused for now, but we'll parse it
 
     # Parse command-line arguments
     for arg in sys.argv[1:]:
-        if arg == '-d':
+        if arg.lower() == '-d':
             debug_mode = True
+        elif arg.lower() in ['-i', '-I']:
+            interactive_switch = True  # This is set but not used yet
         elif arg.isdigit():
             num_files = int(arg)
 
     try:
-        game = ShucksGame(debug_mode, num_files)
+        if interactive_switch:
+            game = InteractiveGameInput(debug_mode, num_files)
+        else:
+            game = NormalGameInput(debug_mode, num_files)
         game.play()
     except ValueError as e:
         print(f"Error: {str(e)}")
