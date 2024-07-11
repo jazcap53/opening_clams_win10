@@ -355,10 +355,6 @@ class InteractiveGameInput(ShucksGame):
         pygame.mixer.quit()
 
     def play(self):
-        """
-        Main game loop for interactive mode.
-        Overrides the play method from ShucksGame.
-        """
         self.clear_screen()
         while self.unguessed_files:
             self.select_new_file()
@@ -375,16 +371,7 @@ class InteractiveGameInput(ShucksGame):
                     self.current_input = self.current_input[:-1]
                 elif char == '\r':  # Enter
                     if self.check_guess(self.current_input):
-                        print("Correct!")
-                        self.stop_audio.set()
-                        if self.audio_thread:
-                            self.audio_thread.join()
-                        time.sleep(SLEEP_SECS)
-                        self.current_input = ""
                         break
-                    else:
-                        print("Incorrect. Try again.")
-                        time.sleep(SLEEP_SECS)
                 elif char == '\x03':  # Ctrl-C
                     print("\nExiting the game.")
                     self.stop_audio.set()
@@ -397,7 +384,8 @@ class InteractiveGameInput(ShucksGame):
 
         self.display_game_over_message()
 
-    def get_char(self) -> str:
+    @staticmethod
+    def get_char() -> str:
         """
         Get a single character input from the user without requiring Enter.
 
@@ -414,10 +402,6 @@ class InteractiveGameInput(ShucksGame):
         return char
 
     def display_matches(self):
-        """
-        Display song titles that match the current input.
-        If no matches are found, display "Nope." and reset the input.
-        """
         if not self.current_input:
             return
 
@@ -428,29 +412,22 @@ class InteractiveGameInput(ShucksGame):
             for match in matches:
                 print(f"- {match}")
 
-            if len(matches) == 1 and matches[0] == self.get_current_song_title():
-                self.check_guess(self.current_input)
+            if len(matches) == 1:
+                if self.check_guess(self.current_input):
+                    return
         else:
             print("\nNope.")
             time.sleep(SLEEP_SECS)
             self.current_input = ""
 
     def check_guess(self, guess: str) -> bool:
-        """
-        Check if the user's guess is correct.
-
-        Args:
-            guess (str): The user's guess (concatenated letters).
-
-        Returns:
-            bool: True if the guess is correct, False otherwise.
-        """
         correct_title = self.get_current_song_title()
-        if correct_title and correct_title.lower() == guess.lower():
+        if correct_title and correct_title.lower().startswith(guess.lower()):
             print("Correct!")
             self.stop_audio.set()
             if self.audio_thread:
                 self.audio_thread.join()
+            self.correct_answers += 1
             time.sleep(SLEEP_SECS)
             self.current_input = ""
             return True
@@ -466,9 +443,6 @@ class InteractiveGameInput(ShucksGame):
         return next((title for title, files in self.songs.items() if self.current_file in files), None)
 
     def select_new_file(self):
-        """
-        Select a new file to play.
-        """
         self.current_file = random.choice(self.unguessed_files)
         self.unguessed_files.remove(self.current_file)
 
