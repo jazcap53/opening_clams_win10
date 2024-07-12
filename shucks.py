@@ -338,54 +338,56 @@ class InteractiveGameInput(ShucksGame):
     - Letters are processed as soon as they are typed
     - The screen is updated after each letter, showing matching song titles
     - Audio plays continuously until a correct guess is made
+    - Integer input is treated as invalid and discarded
     """
 
     def __init__(self, debug_mode: bool = False, num_files: Optional[int] = None):
+        """
+        Initialize the InteractiveGameInput.
+
+        Args:
+            debug_mode (bool): Whether to run the game in debug mode.
+            num_files (Optional[int]): Number of files to use in the game.
+        """
         super().__init__(debug_mode, num_files)
         self.current_input = ""
         pygame.mixer.init()
         self.current_file = None
         self.audio_thread = None
         self.stop_audio = threading.Event()
+        self.total_questions = len(self.songs)
 
     def __del__(self):
+        """Clean up pygame mixer and audio thread when the object is destroyed."""
         self.stop_audio.set()
         if self.audio_thread:
             self.audio_thread.join()
         pygame.mixer.quit()
 
     def play(self):
+        """
+        Main game loop for interactive mode.
+        Overrides the play method from ShucksGame.
+        """
         self.clear_screen()
         while self.unguessed_files:
             self.select_new_file()
-            self.display_song_list()
-            print("\nPlaying audio... Try to guess the song!")
+            self.display_game_state()
             self.play_file()
 
             while True:
-                self.display_matches()
                 char = self.get_char()
-                if char.isalpha() or char == ' ':
-                    self.current_input += char.lower()
-                elif char == '\x7f':  # Backspace
-                    self.current_input = self.current_input[:-1]
-                elif char == '\r':  # Enter
+                if self.process_input(char):
                     if self.check_guess(self.current_input):
                         break
-                elif char == '\x03':  # Ctrl-C
-                    print("\nExiting the game.")
-                    self.stop_audio.set()
-                    if self.audio_thread:
-                        self.audio_thread.join()
-                    return
-                self.clear_screen()
-                self.display_song_list()
-                print("\nPlaying audio... Try to guess the song!")
+                self.display_matches()
+
+            if not self.unguessed_files:
+                break
 
         self.display_game_over_message()
 
-    @staticmethod
-    def get_char() -> str:
+    def get_char(self) -> str:
         """
         Get a single character input from the user without requiring Enter.
 
@@ -401,7 +403,48 @@ class InteractiveGameInput(ShucksGame):
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return char
 
+    def process_input(self, char: str) -> bool:
+        """
+        Process the input character and update the game state accordingly.
+
+        Args:
+            char (str): The input character.
+
+        Returns:
+            bool: True if input should be checked as a guess, False otherwise.
+        """
+        if char.isalpha() or char == ' ':
+            self.current_input += char.lower()
+            return True
+        elif char == '\x7f':  # Backspace
+            self.current_input = self.current_input[:-1]
+        elif char == '\x03':  # Ctrl-C
+            print("\nExiting the game.")
+            self.stop_audio_and_wait()
+            sys.exit(0)
+        elif char.isdigit():
+            print("Bad input.")
+            time.sleep(SLEEP_SECS)
+            self.current_input = ""
+        return False
+
+    def display_game_state(self):
+        """Display the current game state, including song list and progress."""
+        self.clear_screen()
+        self.display_song_list()
+        self.display_progress()
+        print("\nPlaying audio... Try to guess the song!")
+
     def display_matches(self):
+        """
+        Display song titles that match the current input.
+        If no matches are found, display "Nope." and reset the input.
+        """
+        self.clear_screen()
+        self.display_song_list()
+        self.display_progress()
+        print("\nPlaying audio... Try to guess the song!")
+
         if not self.current_input:
             return
 
@@ -411,22 +454,26 @@ class InteractiveGameInput(ShucksGame):
             print("Matching songs:")
             for match in matches:
                 print(f"- {match}")
-
-            if len(matches) == 1:
-                if self.check_guess(self.current_input):
-                    return
         else:
             print("\nNope.")
             time.sleep(SLEEP_SECS)
             self.current_input = ""
 
     def check_guess(self, guess: str) -> bool:
+        """
+        Check if the user's guess is correct.
+
+        Args:
+            guess (str): The user's guess (concatenated letters).
+
+        Returns:
+            bool: True if the guess is correct, False otherwise.
+        """
         correct_title = self.get_current_song_title()
-        if correct_title and correct_title.lower().startswith(guess.lower()):
+        matches = [title for title in self.song_titles if title.lower().startswith(guess.lower())]
+        if len(matches) == 1 and matches[0] == correct_title:
+            self.stop_audio_and_wait()
             print("Correct!")
-            self.stop_audio.set()
-            if self.audio_thread:
-                self.audio_thread.join()
             self.correct_answers += 1
             time.sleep(SLEEP_SECS)
             self.current_input = ""
@@ -443,6 +490,9 @@ class InteractiveGameInput(ShucksGame):
         return next((title for title, files in self.songs.items() if self.current_file in files), None)
 
     def select_new_file(self):
+        """
+        Select a new file to play.
+        """
         self.current_file = random.choice(self.unguessed_files)
         self.unguessed_files.remove(self.current_file)
 
@@ -465,6 +515,15 @@ class InteractiveGameInput(ShucksGame):
             time.sleep(0.5)  # 0.5 second pause between replays
         sound.stop()
 
+    def stop_audio_and_wait(self):
+        """
+        Stop the audio playback and wait for the audio thread to finish.
+        """
+        self.stop_audio.set()
+        if self.audio_thread:
+            self.audio_thread.join()
+        self.stop_audio.clear()
+
     @staticmethod
     def clear_screen():
         """Clear the console screen."""
@@ -473,15 +532,43 @@ class InteractiveGameInput(ShucksGame):
     # The following methods are not used in interactive mode, but are implemented
     # to satisfy the abstract base class requirements
     def get_user_input(self) -> str:
+        """
+        This method is not used in interactive mode.
+        Implemented to satisfy the abstract base class requirement.
+
+        Returns:
+            str: An empty string.
+        """
         return ""
 
     def handle_guess(self, user_input: str) -> bool:
+        """
+        This method is not used in interactive mode.
+        Implemented to satisfy the abstract base class requirement.
+
+        Args:
+            user_input (str): The user's input (unused).
+
+        Returns:
+            bool: Always returns False.
+        """
         return False
 
     def handle_user_interaction(self) -> bool:
+        """
+        This method is not used in interactive mode.
+        Implemented to satisfy the abstract base class requirement.
+
+        Returns:
+            bool: Always returns False.
+        """
         return False
 
     def show_answer(self):
+        """
+        This method is not used in interactive mode.
+        Implemented to satisfy the abstract base class requirement.
+        """
         pass
 
 
