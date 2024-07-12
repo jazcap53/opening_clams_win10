@@ -14,9 +14,7 @@ import msvcrt
 import os
 import random
 import sys
-# import termios
 import time
-# import tty
 from typing import Dict, List, Optional
 
 import pygame
@@ -79,12 +77,19 @@ class ShucksGame(ABC):
             Dict[str, List[str]]: A dictionary where keys are song titles and values are lists of file paths.
         """
         songs = {}
-        for filename in os.listdir(AUDIO_DIR):
+        if getattr(sys, 'frozen', False):
+            # we are running in a bundle
+            audio_dir = os.path.join(sys._MEIPASS, AUDIO_DIR)
+        else:
+            # we are running in a normal Python environment
+            audio_dir = AUDIO_DIR
+        
+        for filename in os.listdir(audio_dir):
             if filename.endswith(".mp3"):
                 name_without_ext = os.path.splitext(filename)[0]
                 words = name_without_ext.split('_')
                 song_title = ' '.join(word.capitalize() for word in words[:-1])
-                audio_path = os.path.join(AUDIO_DIR, filename)
+                audio_path = os.path.join(audio_dir, filename)
                 songs.setdefault(song_title, []).append(audio_path)
         return songs
 
