@@ -378,9 +378,9 @@ class InteractiveGameInput(ShucksGame):
             while True:
                 char = self.get_char()
                 if self.process_input(char):
+                    self.display_matches()
                     if self.check_guess(self.current_input):
                         break
-                self.display_matches()
 
             if not self.unguessed_files:
                 break
@@ -418,6 +418,7 @@ class InteractiveGameInput(ShucksGame):
             return True
         elif char == '\x7f':  # Backspace
             self.current_input = self.current_input[:-1]
+            return True
         elif char == '\x03':  # Ctrl-C
             print("\nExiting the game.")
             self.stop_audio_and_wait()
@@ -445,12 +446,10 @@ class InteractiveGameInput(ShucksGame):
         self.display_progress()
         print("\nPlaying audio... Try to guess the song!")
 
-        if not self.current_input:
-            return
+        print(f"\nCurrent input: {self.current_input}")
 
-        matches = [title for title in self.song_titles if title.lower().startswith(self.current_input)]
+        matches = [title for title in self.song_titles if title.lower().startswith(self.current_input.lower())]
         if matches:
-            print(f"\nCurrent input: {self.current_input}")
             print("Matching songs:")
             for match in matches:
                 print(f"- {match}")
@@ -471,13 +470,18 @@ class InteractiveGameInput(ShucksGame):
         """
         correct_title = self.get_current_song_title()
         matches = [title for title in self.song_titles if title.lower().startswith(guess.lower())]
-        if len(matches) == 1 and matches[0] == correct_title:
-            self.stop_audio_and_wait()
-            print("Correct!")
-            self.correct_answers += 1
-            time.sleep(SLEEP_SECS)
-            self.current_input = ""
-            return True
+        if len(matches) == 1 and matches[0].lower().startswith(guess.lower()):
+            if matches[0] == correct_title:
+                self.stop_audio_and_wait()
+                print("Correct!")
+                self.correct_answers += 1
+                time.sleep(SLEEP_SECS)
+                self.current_input = ""
+                return True
+            else:
+                print("Incorrect!")
+                time.sleep(SLEEP_SECS)
+                self.current_input = ""
         return False
 
     def get_current_song_title(self) -> Optional[str]:
