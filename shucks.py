@@ -10,12 +10,13 @@ user interactions such as skipping, replaying, or requesting the answer
 for each audio clip.
 """
 from abc import ABC, abstractmethod
+import msvcrt
 import os
 import random
 import sys
-import termios
+# import termios
 import time
-import tty
+# import tty
 from typing import Dict, List, Optional
 
 import pygame
@@ -135,7 +136,7 @@ class ShucksGame(ABC):
         """
         sound.play()
         while pygame.mixer.get_busy() and not self.stop_audio:
-            time.sleep(0.1)
+            pygame.time.wait(100)
         sound.stop()
 
     def display_progress(self):
@@ -155,10 +156,7 @@ class ShucksGame(ABC):
     @staticmethod
     def clear_screen():
         """Clear the console screen."""
-        if os.name == 'nt':  # Windows
-            os.system('cls')
-        else:  # Linux, macOS
-            os.system('clear')
+        os.system('cls')
 
     @abstractmethod
     def handle_guess(self, user_input: str) -> bool:
@@ -398,13 +396,7 @@ class InteractiveGameInput(ShucksGame):
         Returns:
             str: The character entered by the user.
         """
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            char = sys.stdin.read(1)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        char = msvcrt.getch().decode('utf-8')
         return char
 
     def process_input(self, char: str) -> bool:
@@ -420,7 +412,7 @@ class InteractiveGameInput(ShucksGame):
         if char.isalpha():
             self.current_input += char.lower()
             return True
-        elif char == '\x7f':  # Backspace
+        elif char == '\b':  # Backspace
             if self.current_input:
                 self.current_input = self.current_input[:-1]
                 return True
@@ -539,7 +531,7 @@ class InteractiveGameInput(ShucksGame):
     @staticmethod
     def clear_screen():
         """Clear the console screen."""
-        os.system('clear')
+        os.system('cls')
 
     # The following methods are not used in interactive mode, but are implemented
     # to satisfy the abstract base class requirements
